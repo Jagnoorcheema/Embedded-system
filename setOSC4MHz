@@ -1,0 +1,14 @@
+/*>>> setOSC4MHz: -----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		19/09/2023
+Modified:	None
+Desc:		Set the OSC to 4MHz and make the frequency stable
+Input: 		None 
+Returns:	None
+ ----------------------------------------------------------------------------*/
+void setOSC4MHz(void)
+{
+	OSCCON= 0x52;
+	while(!OSCCONbits.HFIOFS);
+
+} // eo setOSC4MHz::
