@@ -1,0 +1,195 @@
+/*-----------------------------------------------------------------------------
+	File Name:	ELNC6007JKCLab6.c 
+	Author:		Jagnoor kaur cheema
+	Date:		13/11/2023
+	Modified:	None
+	© Fanshawe College, 2023
+
+	Description: Set the OSC to 4MHz, set the IO ports, reset the timer,
+			configure the timer, configure the USART1, create the 
+			time data structure, tick the time in hours:minutes:seconds
+			and display on tera term.
+
+
+-----------------------------------------------------------------------------*/
+
+/* Preprocessor ---------------------------------------------------------------
+   Hardware Configuration Bits ----------------------------------------------*/
+#pragma config FOSC	= INTIO67
+#pragma config PLLCFG	= OFF
+#pragma config PRICLKEN = ON
+#pragma config FCMEN	= OFF
+#pragma config IESO	= OFF
+#pragma config PWRTEN	= OFF 
+#pragma config BOREN	= ON
+#pragma config BORV	= 285 
+#pragma config WDTEN	= OFF
+#pragma config PBADEN	= OFF
+#pragma config LVP	= OFF
+#pragma config MCLRE	= EXTMCLR
+
+// Libraries ------------------------------------------------------------------
+#include <p18f45k22.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+// Constants  -----------------------------------------------------------------
+#define TRUE	1	
+#define FALSE	0
+#define MAXSEC 60
+#define MAXMIN 60
+#define MAXHOUR 60 
+#define ONESEC 0x0BDC
+#define BYTESIZE 8
+#define DING INTCONbits.TMR0IF
+#define TIMER0 T0CONbits.TMR0ON
+
+
+// Global Variables  ----------------------------------------------------------
+typedef struct 
+{
+	unsigned char sec;
+	unsigned char min;
+	unsigned char hour;
+}clock_t;
+
+// Functions  -----------------------------------------------------------------
+
+/*>>> setOSC4MHz: -----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		13/11/2023
+Modified:	None
+Desc:		Set the oscillator at 4MHz, uses internal oscillator block 
+		and hold frequency stable
+Input: 		None
+Returns:	None
+ ----------------------------------------------------------------------------*/
+void setOSC4MHz(void)
+{
+	OSCCON= 0x52;
+	while(!OSCCONbits.HFIOFS);
+
+} // eo setOSC4MHz::
+
+/*>>>  setIOPorts: ----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		13/11/2023
+Modified:	None
+Desc:		Set the IO ports 
+Input: 		None 
+Returns:	None
+ ----------------------------------------------------------------------------*/
+void setIOPorts(void)
+{
+	ANSELA= 0x00;
+	LATA= 0x00;
+	TRISA= 0xFF;
+	ANSELD= 0x00;
+	LATD= 0x00;
+	TRISD= 0xF0;
+	
+} // eo setIOPorts::
+
+/*>>> resetTimer0: -----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		13/11/2023
+Modified:	None
+Desc:		Reset the timer after a rollover
+Input: 		Prescale count as intger data type (int psc)
+Returns:	None
+ ----------------------------------------------------------------------------*/
+void resetTimer0(int psc)
+{
+	DING= FALSE;
+	TMR0H= psc>>BYTESIZE;
+	TMR0L= psc;
+
+} // eo resetTimer0::
+
+/*>>> configTimer0: -----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		13/11/2023
+Modified:	None
+Desc:		Configure the timer by making the timer on, using internal clock source, PSV as 16
+		and assigned
+Input: 		Prescale count as intger data type (int psc)
+Returns:	None
+ ----------------------------------------------------------------------------*/
+void configTimer0(int psc)
+{
+	resetTimer0(psc);
+	T0CON= 0x93;
+
+} // eo configTimer0::
+
+/*>>> configUSART1: -----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		13/11/2023
+Modified:	None
+Desc:		Serial port on, Tx and Rx enabled, 8 bit transmission, No parity, 
+		9600 baud rate
+Input: 		None 
+Returns:	None 
+----------------------------------------------------------------------------*/
+void configUSART1(void)
+{
+	BAUDCON= 0x40;
+	TXSTA1= 0x26;
+	RCSTA1= 0x90;
+	SPBRG1= 25;
+	SPBRGH1= 0x00;
+
+} // eo configUSART1::
+
+/*>>> sysInit: -----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		13/11/2023
+Modified:	None
+Desc:		Call the configure functions to initialize the system
+Input: 		None 
+Returns:	None 
+----------------------------------------------------------------------------*/
+void sysInit(void)
+{
+	setOSC4MHz();
+	setIOPorts();
+	configTimer0(ONESEC);
+	configUSART1();
+
+} // eo sysInit::
+
+
+/*--- MAIN: FUNCTION ----------------------------------------------------------
+ ----------------------------------------------------------------------------*/
+void main( void )
+{
+	clock_t time;
+	sysInit();
+	time.sec=0;
+	time.min=0;
+	time.hour=0;
+	
+	while(TRUE)
+	{
+		if( DING )
+		{
+			resetTimer0(ONESEC);
+			time.sec ++;
+			if (time.sec>=MAXSEC)
+			{
+				time.sec=0;
+				time.min++;
+				if(time.min>=MAXMIN)
+				{
+					time.min=0;
+					time.hour++;
+					if(time.hour>=MAXHOUR)
+					{
+						time.hour=0;
+					}
+				}
+			}
+			printf("\r%02d:%02d:%02d",time.hour,time.min,time.sec);
+		}
+	}
+}
