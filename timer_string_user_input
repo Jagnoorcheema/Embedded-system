@@ -1,0 +1,263 @@
+/*-----------------------------------------------------------------------------
+	File Name:	ELNC6007JKCLab7.c 
+	Author:		Jagnoor kaur cheema
+	Date:		21/11/2023
+	Modified:	None
+	© Fanshawe College, 2023
+
+	Description: Set the oscillator, input and output ports, reset and 
+			configure the timer for 1 second rollover, configure
+			USART, configure interrupt and interrupt vector, start the 
+			timer and print the string user inputs
+
+-----------------------------------------------------------------------------*/
+
+/* Preprocessor ---------------------------------------------------------------
+   Hardware Configuration Bits ----------------------------------------------*/
+#pragma config FOSC	= INTIO67
+#pragma config PLLCFG	= OFF
+#pragma config PRICLKEN = ON
+#pragma config FCMEN	= OFF
+#pragma config IESO	= OFF
+#pragma config PWRTEN	= OFF 
+#pragma config BOREN	= ON
+#pragma config BORV	= 285 
+#pragma config WDTEN	= OFF
+#pragma config PBADEN	= OFF
+#pragma config LVP	= OFF
+#pragma config MCLRE	= EXTMCLR
+
+// Libraries ------------------------------------------------------------------
+#include <p18f45k22.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+// Constants  -----------------------------------------------------------------
+#define TRUE	1	
+#define FALSE	0
+#define MAXSEC 60
+#define MAXMIN 60
+#define MAXHOUR 60 
+#define ONESEC 0x0BDC
+#define BYTESIZE 8
+#define DING INTCONbits.TMR0IF
+#define TIMER0 T0CONbits.TMR0ON
+#define PB1 PORTAbits.RA4
+#define PB2 PORTAbits.RA5
+#define PB3 PORTAbits.RA6
+#define LED1 LATDbits.LATD3
+#define LED2 LATDbits.LATD2
+#define LED3 LATDbits.LATD1
+#define RC1FLAG PIR1bits.RC1IF
+#define BUFSIZE 35
+#define INTGON 0xC0
+
+// Prototype ------------------------------------------------------------------
+	void ISR();
+
+// Vector command -------------------------------------------------------------
+#pragma code interruptVector= 0x0008
+void interruptVector()
+{
+	_asm
+		GOTO ISR
+	_endasm
+}
+#pragma code
+
+// Global Variables  ----------------------------------------------------------
+typedef struct 
+{
+	unsigned char sec;
+	unsigned char min;
+	unsigned char hour;
+}clock_t;
+clock_t time;
+
+char buf[BUFSIZE];
+char count;
+
+// Functions  -----------------------------------------------------------------
+
+/*>>> setOSC4MHz: -----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		19/09/2023
+Modified:	None
+Desc:		Set the OSC to 4MHz and make the frequency stable
+Input: 		None 
+Returns:	None
+ ----------------------------------------------------------------------------*/
+void setOSC4MHz(void)
+{
+	OSCCON= 0x52;
+	while(!OSCCONbits.HFIOFS);
+
+} // eo setOSC4MHz::
+
+/*>>>  setIOPorts: ----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		14/11/2023
+Modified:	None
+Desc:		Set the IO ports 
+Input: 		None 
+Returns:	None
+ ----------------------------------------------------------------------------*/
+void setIOPorts(void)
+{
+	ANSELA= 0x01;
+	LATA= 0x00;
+	TRISA= 0xF1;
+	ANSELC= 0x00;
+	TRISC= 0xFF;
+	LATC= 0x00;
+	ANSELD= 0x00;
+	LATD= 0x00;
+	TRISD= 0x00;
+	
+} // eo setIOPorts::
+
+/*>>> resetTimer0: -----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		17/10/2023
+Modified:	None
+Desc:		Reset the timer after a rollover
+Input: 		Prescale count as intger data type (int psc)
+Returns:	None
+ ----------------------------------------------------------------------------*/
+void resetTimer0(int psc)
+{
+	DING= FALSE;
+	TMR0H= psc>>BYTESIZE;
+	TMR0L= psc;
+
+} // eo resetTimer0::
+
+/*>>> configTimer0: -----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		17/10/2023
+Modified:	None
+Desc:		Configure the timer by making the timer off, using internal 
+		clock source, PSV as 16
+Input: 		Prescale count as intger data type (int psc)
+Returns:	None
+ ----------------------------------------------------------------------------*/
+void configTimer0(int psc)
+{
+	resetTimer0(psc);
+	T0CON= 0x93;
+
+} // eo configTimer0::
+
+/*>>> configUSART1: -----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		13/11/2023
+Modified:	None
+Desc:		Serial port on, Tx and Rx enabled, 8 bit transmission, No parity, 
+		9600 baud rate
+Input: 		None 
+Returns:	None 
+----------------------------------------------------------------------------*/
+void configUSART1(void)
+{
+	BAUDCON= 0x40;
+	TXSTA1= 0x26;
+	RCSTA1= 0x90;
+	SPBRG1= 25;
+	SPBRGH1= 0x00;
+
+} // eo configUSART1::
+
+/*>>> configInterrupt: -----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		21/11/2023
+Modified:	None
+Desc:		Global interrupts on, no priority levels, Timer0 interrupt enabled, 
+		USART 1’s receiver enabled
+Input: 		None 
+Returns:	None 
+----------------------------------------------------------------------------*/
+void configInterrupt(void)
+{
+	//TMR0
+	INTCON2bits.TMR0IP= FALSE;
+	DING= FALSE;
+	INTCONbits.TMR0IE= TRUE;
+	//Receiver1
+	IPR1bits.RC1IP= FALSE;
+	RC1FLAG= FALSE;
+	PIE1bits.RC1IE= TRUE;
+	//Globals
+	RCONbits.IPEN= FALSE;
+	INTCON |= INTGON;
+	
+} // eo configInterrupt::
+
+/*>>> sysInit: -----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		21/11/2023
+Modified:	None
+Desc:		Call the configure functions to initialize the system
+Input: 		None 
+Returns:	None 
+----------------------------------------------------------------------------*/
+void sysInit(void)
+{
+	setOSC4MHz();
+	setIOPorts();
+	configTimer0(ONESEC);
+	configUSART1();
+	configInterrupt();
+
+} // eo sysInit::
+
+//ISR-------------------------------------------------------------------------
+#pragma interrupt ISR
+void ISR()
+{
+	if ( DING )
+	{
+		resetTimer0(ONESEC);
+		time.sec ++;
+		if (time.sec>=MAXSEC)
+		{
+			time.sec=0;
+			time.min++;
+			if(time.min>=MAXMIN)
+			{
+				time.min=0;
+				time.hour++;
+				if(time.hour>=MAXHOUR)
+				{
+					time.hour=0;
+				}
+			}
+		}
+		printf("\033[H%02d:%02d:%02d ",time.hour,time.min,time.sec);
+	}
+	if ( RC1FLAG )
+	{
+		buf[ count ] = RCREG;
+		if ( buf[count] == '\r')
+		{
+			buf[count]= 0;
+			printf("\n\r\033[JThe string is:%s", buf);
+			count=0;
+		}
+		else
+		{
+			count++;
+		}
+	}
+}
+
+/*--- MAIN: FUNCTION ----------------------------------------------------------
+ ----------------------------------------------------------------------------*/
+void main( void )
+{
+	clock_t time;
+	sysInit();
+	time.sec=0;
+	time.min=0;
+	time.hour=0;
+	while ( TRUE );
+}
