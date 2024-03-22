@@ -1,0 +1,189 @@
+/*-----------------------------------------------------------------------------
+	File Name:	ELNC6007JKCLab4.c  
+	Author:		Jagnoor kaur cheema
+	Date:		10/10/2023
+	Modified:	None
+	© Fanshawe College, 2023
+
+	Description: 	Initialize and modify the IO ports and ADC module. 
+			Take a sample from the channel, compare the value with the define
+			labels and creates an LED ladder.
+-----------------------------------------------------------------------------*/
+
+/* Preprocessor ---------------------------------------------------------------
+   Hardware Configuration Bits ----------------------------------------------*/
+#pragma config FOSC	= INTIO67
+#pragma config PLLCFG	= OFF
+#pragma config PRICLKEN = ON
+#pragma config FCMEN	= OFF
+#pragma config IESO	= OFF
+#pragma config PWRTEN	= OFF 
+#pragma config BOREN	= ON
+#pragma config BORV	= 285 
+#pragma config WDTEN	= OFF
+#pragma config PBADEN	= OFF
+#pragma config LVP	= OFF
+#pragma config MCLRE	= EXTMCLR
+
+// Libraries ------------------------------------------------------------------
+#include <p18f45k22.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+// Constants  -----------------------------------------------------------------
+#define TRUE	1	
+#define FALSE	0	
+#define ADCCHANNEL 0
+#define LEVEL1 128
+#define LEVEL2 256
+#define LEVEL3 512
+#define LEVEL4 768
+#define PB1 PORTAbits.RA4
+#define LED1 LATDbits.LATD3
+#define LED2 LATDbits.LATD2
+#define LED3 LATDbits.LATD1
+#define LED4 LATDbits.LATD0
+
+// Global Variables  ----------------------------------------------------------
+
+// Functions  -----------------------------------------------------------------
+
+/*>>> functionName:setOSC4MHz -----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		10/10/2023
+Modified:	None
+Desc:		Set the oscillator at 4MHz, uses internal oscillator block 
+		and hold frequency stable
+Input: 		None
+Returns:	None
+ ----------------------------------------------------------------------------*/
+void setOSC4MHz(void)
+{
+	OSCCON= 0x52;
+	while(!OSCCONbits.HFIOFS);
+
+} // eo setOSC4MHz::
+
+/*>>> functionName: setIOPorts ----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		10/10/2023
+Modified:	None
+Desc:		Set the IO ports 
+Input: 		None 
+Returns:	None
+ ----------------------------------------------------------------------------*/
+void setIOPorts(void)
+{
+	ANSELA= 0x00;
+	LATA= 0x00;
+	TRISA= 0xFF;
+	ANSELD= 0x00;
+	LATD=0x00;
+	TRISD= 0xF0;
+	
+} // eo setIOPorts::
+
+/*>>> functionName: setADCModule-----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		10/10/2023
+Modified:	None
+Desc:		Configure ADC Module and set to 12 Tad, Fosc/8 and right justified
+Input: 		None 
+Returns:	None 
+ ----------------------------------------------------------------------------*/
+void setADCModule(void)
+{
+	ADCON0= 0x01;
+	ADCON1= 0x00;
+	ADCON2= 0xA9;
+
+} // eo setADCModule::
+
+/*>>> functionName: sysInit-----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		10/10/2023
+Modified:	None
+Desc:		Call all the configuration functions
+Input: 		None 
+Returns:	None 
+ ----------------------------------------------------------------------------*/
+void sysInit(void)
+{
+	setOSC4MHz();
+	setIOPorts();
+	setADCModule();
+
+} // eo sysInit::
+
+/*>>> functionName: sampleADC -----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		10/10/2023
+Modified:	None
+Desc:		Gets the input, start a conversion and return the result value.
+Input: 		channel id (chID)
+Returns:	ADRES 
+ ----------------------------------------------------------------------------*/
+int sampleADC(char chID)
+{
+	ADCON0bits.CHS= chID;
+	ADCON0bits.GO= TRUE;
+	while(ADCON0bits.GO);
+	return ADRES;
+
+} // eo sampleADC::
+
+
+
+/*--- MAIN: FUNCTION ----------------------------------------------------------
+ ----------------------------------------------------------------------------*/
+void main( void )
+{
+	int adcResult= 0;
+	sysInit();
+	while(TRUE)
+	{
+		
+		if (PB1==FALSE)
+		{
+			adcResult= sampleADC(ADCCHANNEL);
+			if (adcResult> LEVEL4)
+			{
+				LED1= TRUE;
+				LED2= TRUE;
+				LED3= TRUE;
+				LED4= TRUE;
+			}	
+			else if (adcResult> LEVEL3)
+			{
+				LED1= TRUE;
+				LED2= TRUE;
+				LED3= TRUE;
+				LED4= FALSE;
+			}
+			else if (adcResult> LEVEL2)
+			{
+				LED1= TRUE;
+				LED2= TRUE;
+				LED3= FALSE;
+				LED4= FALSE;
+			}
+			else if (adcResult> LEVEL1)
+			{
+				LED1= TRUE;
+				LED2= FALSE;
+				LED3= FALSE;
+				LED4= FALSE;
+			}		
+			else if (adcResult<LEVEL1)
+			{
+				LED1= FALSE;
+				LED2= FALSE;
+				LED3= FALSE;
+				LED4= FALSE;
+			}
+				
+		
+		}
+	}
+
+}// eo main::
