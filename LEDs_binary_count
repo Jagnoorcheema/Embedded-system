@@ -1,0 +1,177 @@
+/*-----------------------------------------------------------------------------
+	File Name:	ELNC6007JKCLab5.c  
+	Author:		Jagnoor kaur cheema
+	Date:		17/10/2023
+	Modified:	None
+	© Fanshawe College, 2023
+
+	Description:  Set the oscillator module to 4MHz; set the input output ports;
+			reset the timer and configure the functions; set the LEDs to do binary count 
+			when the pushbuttons 1 is pressed and stop the timer when pushbutton 2 is pressed
+			and check for the rollover period.
+
+-----------------------------------------------------------------------------*/
+
+/* Preprocessor ---------------------------------------------------------------
+   Hardware Configuration Bits ----------------------------------------------*/
+#pragma config FOSC	= INTIO67
+#pragma config PLLCFG	= OFF
+#pragma config PRICLKEN = ON
+#pragma config FCMEN	= OFF
+#pragma config IESO	= OFF
+#pragma config PWRTEN	= OFF 
+#pragma config BOREN	= ON
+#pragma config BORV	= 285 
+#pragma config WDTEN	= OFF
+#pragma config PBADEN	= OFF
+#pragma config LVP	= OFF
+#pragma config MCLRE	= EXTMCLR
+
+// Libraries ------------------------------------------------------------------
+#include <p18f45k22.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+// Constants  -----------------------------------------------------------------
+#define TRUE	1	
+#define FALSE	0
+#define DING INTCONbits.TMR0IF	
+#define BYTESIZE 8
+#define ONESEC 0x0BDC
+#define PB1 PORTAbits.RA4
+#define PB2 PORTAbits.RA5
+#define PB3 PORTAbits.RA6
+#define LED1 LATDbits.LATD3
+#define LED2 LATDbits.LATD2
+#define LED3 LATDbits.LATD1
+#define TIMER0 T0CONbits.TMR0ON
+#define PBMASK 0xF0
+
+
+// Global Variables  ----------------------------------------------------------
+
+
+// Functions  -----------------------------------------------------------------
+
+/*>>> setOSC4MHz: -----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		17/10/2023
+Modified:	None
+Desc:		Set the oscillator at 4MHz, uses internal oscillator block 
+		and hold frequency stable
+Input: 		None
+Returns:	None
+ ----------------------------------------------------------------------------*/
+void setOSC4MHz(void)
+{
+	OSCCON= 0x52;
+	while(!OSCCONbits.HFIOFS);
+
+} // eo setOSC4MHz::
+
+/*>>>  setIOPorts: ----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		17/10/2023
+Modified:	None
+Desc:		Set the IO ports 
+Input: 		None 
+Returns:	None
+ ----------------------------------------------------------------------------*/
+void setIOPorts(void)
+{
+	ANSELA= 0x00;
+	LATA= 0x00;
+	TRISA= 0xFF;
+	ANSELD= 0x00;
+	LATD= 0x00;
+	TRISD= 0xF0;
+	
+} // eo setIOPorts::
+
+/*>>> resetTimer0: -----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		17/10/2023
+Modified:	None
+Desc:		Reset the timer after a rollover
+Input: 		Prescale count as intger data type (int psc)
+Returns:	None
+ ----------------------------------------------------------------------------*/
+void resetTimer0(int psc)
+{
+	DING= FALSE;
+	TMR0H= psc>>BYTESIZE;
+	TMR0L= psc;
+
+} // eo resetTimer0::
+
+/*>>> configTimer0: -----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		17/10/2023
+Modified:	None
+Desc:		Configure the timer by making the timer off, using internal clock source, PSV as 16
+			and assigned
+Input: 		Prescale count as intger data type (int psc)
+Returns:	None
+ ----------------------------------------------------------------------------*/
+void configTimer0(int psc)
+{
+	resetTimer0(psc);
+	T0CON= 0x13;
+
+} // eo configTimer0::
+
+/*>>> sysInit: -----------------------------------------------------------
+Author:		Jagnoor kaur cheema
+Date:		17/10/2023
+Modified:	None
+Desc:		Call the configure functions to initialize the system
+Input: 		None 
+Returns:	None 
+----------------------------------------------------------------------------*/
+void sysInit(void)
+{
+	setOSC4MHz();
+	setIOPorts();
+	configTimer0(ONESEC);
+
+} // eo sysInit::
+
+
+/*--- MAIN: FUNCTION ----------------------------------------------------------
+ ----------------------------------------------------------------------------*/
+void main( void )
+{
+	char timeCount= 0;
+	char pbState= 0, lastState = 0;
+	sysInit();
+	while(1)
+	{
+		pbState= PORTA & PBMASK;
+		if (pbState!= lastState)
+		{
+			switch (pbState)
+			{
+				case 0xE0:	
+					TIMER0= TRUE;
+					break;
+	
+				case 0xD0:	
+					TIMER0= FALSE;
+					break;
+	
+				case 0xB0:	
+					timeCount= 0;
+					LATD = 0;
+					break;
+				default:
+					break;
+			}
+		}
+		if ( DING == TRUE )
+		{
+			resetTimer0(ONESEC);
+			timeCount++;
+			LATD= timeCount;
+		}
+	}
+} // eo main::
